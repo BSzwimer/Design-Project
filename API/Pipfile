@@ -1,0 +1,19 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+beautifulsoup4 = "==4.9.3"
+blis = "==0.7.4"
+bs4 = "==0.0.1"
+catalogue = "==2.0.1"
+certifi = "==2020.12.5"
+chardet = "==4.0.0"
+click = "==7.1.2"
+cymem = "==2.0.5"
+
+[requires]
+python_version = "3.7"
