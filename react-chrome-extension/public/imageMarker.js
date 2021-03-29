@@ -1,27 +1,33 @@
-async function fetchMovies() {
-  console.log("PUSSY");
+async function fetchWebpage() {
+  var answer = {};
   const response = await fetch(
     "http://127.0.0.1:5000/geturl/?page=Paper_Mario:_The_Origami_King"
   )
     .then((response) => response.json())
     .then((data) => {
       console.log("Success:", data);
+      answer = data;
     });
+
+  return answer;
 }
 
-fetchMovies();
+fetchWebpage().then((data) => console.log(data));
 
-var data = {};
-function getData() {
-  data = {
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Suez_Canal_traffic_jam_seen_from_space.jpg/220px-Suez_Canal_traffic_jam_seen_from_space.jpg":
-      "Eths tiny cock",
-  };
-}
+// var answer = fetchMovies();
+// console.log("PLEASEEEE", answer);
+
+// var data = {};
+// function getData() {
+//   data = {
+//     "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Suez_Canal_traffic_jam_seen_from_space.jpg/220px-Suez_Canal_traffic_jam_seen_from_space.jpg":
+//       "Eths tiny cock",
+//   };
+// }
 
 // Unique ID for the className.
 
-getData();
+//getData();
 var MOUSE_VISITED_CLASSNAME = "crx_mouse_visited";
 
 // Previous dom, that we want to track, so we can remove the previous styling.
@@ -49,7 +55,7 @@ document.addEventListener(
       prevDOM = srcElement;
       //console.info(srcElement.currentSrc);
       console.log(document.location.href);
-      console.log(data[srcElement.currentSrc]);
+      //   console.log(data[srcElement.currentSrc]);
       console.dir(srcElement);
     }
   },
