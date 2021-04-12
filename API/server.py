@@ -3,20 +3,14 @@ from flask_cors import CORS
 from flask import Flask, request, jsonify
 app = Flask(__name__)
 CORS(app)
-#import pipeline
+import pipeline
 
 @app.route('/geturl/', methods=['GET'])
 def respond():
 
     # Retrieve the name from url parameter
     name = request.args.get("page", None)
-   # result = pipeline.getResult(name)
-    # For debugging
-
-    result = {'https://upload.wikimedia.org/wikipedia/en/thumb/2/2f/Ring_Style_Combat.jpg/220px-Ring_Style_Combat.jpg': ' Mario stands at the center of a dartboard-like arena divided into four ring-shaped sections with 12 radial slots; each enemy occupies a different slot', 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Kensuke_Tanabe_at_E3.png/180px-Kensuke_Tanabe_at_E3.png': 'Kensuke Tanabe wearing glasses and a red tie'}
-    print(f"got name {name}")
-
-    response = {}
+    result = pipeline.getResult(name)
 
     # Check if user sent a name at all
     if not name:
@@ -26,7 +20,6 @@ def respond():
         response["ERROR"] = "name can't be numeric."
     # Now the user entered a valid name
     else:
-        # response["MESSAGE"] = f"Welcome {name} to our awesome platform!!"
         response = result
 
     # Return the response in json format
