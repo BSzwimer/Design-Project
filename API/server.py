@@ -10,6 +10,8 @@ def respond():
 
     # Retrieve the name from url parameter
     name = request.args.get("page", None)
+
+    # Call the pipeline to get the data
     result = pipeline.getResult(name)
 
     # Check if user sent a name at all

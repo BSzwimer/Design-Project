@@ -61,6 +61,8 @@ openai_model, openai_preprocess = clip.load("ViT-B/32", device=device)
 def getPageData(page):
   """
   Scrape a wikipedia page for all adjacent text/alternative text/image caption pairs
+  This web scrapper takes advantage of the standard format of wikipedia pages which encloses sections by an 'h' tag
+  Therefore, the scrapper looks for an h tag and aggregates data until another 'h' tag is found
   """
   soup = BeautifulSoup(page.html(), 'html.parser')
   element = soup.div.div
@@ -96,10 +98,12 @@ def getPageData(page):
 """
 Strategies
 """
-
 class Strategy:
   """
-  Class to call the methods as strings
+  Class to call the methods as strings.
+  This class is designed such that inputs strategies could be easily added
+  by adding the names of methods to the input content list and output strategies could be added
+  by adding the names to the output content list
   """
 
   def adj(self, page, datum):
@@ -133,6 +137,9 @@ class Strategy:
     return datum.alt_text
 
   def cmp_vsn(self, page, datum):
+    """
+    Use the Azure image captioning tool to caption the datum.url (the image)
+    """
     description_results = computervision_client.describe_image('http:'+datum.img_url)
     if len(description_results.captions) == 0:
       return "No description detected."
@@ -323,6 +330,9 @@ def sentenceEmbeddingPipeline(input_content, output_content):
 
 
 def openAIPipeline(input_content, image_url):
+    """
+    Use OpenAI's clipe tool to find the best sentence from a bag of sentences to describe a given image
+    """
     image = openai_preprocess(Image.open(requests.get(image_url, stream=True).raw)).unsqueeze(0).to(device)
     sentences = re.split('[?.,]', input_content)
     text = clip.tokenize(sentences).to(device)
@@ -336,6 +346,9 @@ def openAIPipeline(input_content, image_url):
     return sentences[np.argmax(probs)]
 
 def getImageCategories(image_url):
+    """
+    Extract the categories of an image using the azure computer vision tool
+    """
     remote_image_features = ["categories"]
     category_results = computervision_client.analyze_image(image_url , remote_image_features)
     categories = {
@@ -352,52 +365,74 @@ def getImageCategories(image_url):
     return categories
 
 def getImageDescription(image_url):
+    """
+    Describe and image
+    """
     description_results = computervision_client.describe_image(image_url)
     if len(description_results.captions) == 0:
       return "No description detected.", 0
     return description_results.captions[0].confidence, description_results.captions[0].text
 
 def AggregatePipeline(input_content, output_content, image_url):
-  strategy = Strategy()
-  image = openai_preprocess(Image.open(requests.get(image_url, stream=True).raw)).unsqueeze(0).to(device)
-  input_content += nounPipeline(input_content, output_content) + ". "
-  input_content += phrasePipeline(input_content, output_content) + ". "
-  input_content += embeddingPipeline(input_content, output_content) + ". "
-  input_content += sentenceEmbeddingPipeline(input_content, output_content) + ". "
-  sentences = re.split('[?.,]',input_content)
-  sentences.append(output_content)
-  text = clip.tokenize(sentences).to(device)
-  with torch.no_grad():
-    image_features = openai_model.encode_image(image)
-    text_features = openai_model.encode_text(text)
-    logits_per_image, logits_per_text = openai_model(image, text)
-    probs = logits_per_image.softmax(dim=-1).cpu().numpy()
-    prob, sentence = sorted(zip(probs[0], sentences))[::-1][0]
-    index = sentences.index(output_content)
-    output_prob = probs[0][index]
-  return prob, sentence, output_prob, output_content
+    """
+    Use OpenAI's clipe tool to find the best sentence from a bag of sentences to describe a given image
+    """
+    strategy = Strategy()
+    image = openai_preprocess(Image.open(requests.get(image_url, stream=True).raw)).unsqueeze(0).to(device)
+    # input_content += nounPipeline(input_content, output_content) + ". "
+    # input_content += phrasePipeline(input_content, output_content) + ". "
+    # input_content += embeddingPipeline(input_content, output_content) + ". "
+    # input_content += sentenceEmbeddingPipeline(input_content, output_content) + ". "
+    sentences = re.split('[?.,]',input_content)
+    sentences.append(output_content)
+    text = clip.tokenize(sentences).to(device)
+    with torch.no_grad():
+        image_features = openai_model.encode_image(image)
+        text_features = openai_model.encode_text(text)
+        logits_per_image, logits_per_text = openai_model(image, text)
+        probs = logits_per_image.softmax(dim=-1).cpu().numpy()
+        prob, sentence = sorted(zip(probs[0], sentences))[::-1][0]
+        index = sentences.index(output_content)
+        output_prob = probs[0][index]
+    return prob, sentence, output_prob, output_content
 
 def scoreOutput(result, caption):
-  result_embedding = sbert_model.encode([result])[0]
-  caption_embedding = sbert_model.encode([caption])[0]
-  return cosine(result_embedding, caption_embedding)
+    """
+    Score an output by checking how close to sentences embeddings map in space
+    """
+    result_embedding = sbert_model.encode([result])[0]
+    caption_embedding = sbert_model.encode([caption])[0]
+    return cosine(result_embedding, caption_embedding)
 
 """
 Final Model
 """
 
 def getResult(page_name):
+    """
+    This method returns the result of the given pipeline
+    """
     result = {}
+
+    # load the model
     loaded_model = pickle.load(open('finalized_model.sav', 'rb'))
+
+    # Scrape the data from the wikipedia page
     page = wikipedia.page(page_name)
     data = getPageData(page)
+
+    # For each image/adjacent text pair
     for datum in data:
       try:
+        # Get the input and output content of the given input and output strategies
         input_content, output_content = get_content(page, datum, ['adj'], ['cmp_vsn'])
 
+        # Get the necessary data for the model using the aggregate pipeline
         aggregate_prob, aggregate_description, aggregate_azure_prob, _ = AggregatePipeline(input_content, output_content, 'https:' + datum.img_url)
         azure_prob, azure_description = getImageDescription('https:' + datum.img_url)
         categories = getImageCategories('https:' + datum.img_url)
+
+        # Predict an ouput between OpenAI and Azure
         prediction = loaded_model.predict(
             [[
               aggregate_prob,
@@ -410,6 +445,8 @@ def getResult(page_name):
               categories['people'],
             ]]
         )
+
+        # Add the result to the result dictionary
         result['https:' + datum.img_url] = aggregate_description if prediction == 0 else azure_description
       except:
         pass
